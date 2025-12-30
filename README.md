@@ -1,189 +1,201 @@
-# Wan Vace Auto Joiner (ComfyUI Custom Nodes)
+# WAN VACE Auto Joiner
 
-Seamlessly join multiple video clips in a folder using **WAN VACE** and **ComfyUI Easy-Use For Loop** automation — with **one-click solution**.
+**Seamlessly join multiple video clips using WAN VACE with one click.**
 
-This node set ensures:
-- VACE runs **exactly N-1 times** for **N input videos**
-- Finalization runs **once**, after the loop completes
-- No premature loop exits
-- No redundant VACE calls
+![ComfyUI](https://img.shields.io/badge/ComfyUI-Custom_Node-blue)
+![License](https://img.shields.io/badge/License-MIT-green)
 
-Nodes appear under: **WAN VACE / Auto Joiner**
+> Automatically process multiple video clips through WAN VACE to create smooth, consistent transitions between them.
 
 ---
 
-## Screenshots
+## ✨ Features
 
-> Add screenshots after setup (recommended).
-
-```
-assets/screenshots/workflow.png
-assets/screenshots/output.png
-```
+- **One-click processing** — Queue once, process all videos automatically
+- **Zero wasted computation** — VACE runs exactly N-1 times for N videos
+- **Seamless transitions** — Maintains visual consistency between clips
+- **Easy setup** — Works with ComfyUI Easy-Use For Loop
 
 ---
 
-## Key Features
+## 📸 Preview
 
-- One-click batch video joining
-- Designed specifically for **WAN VACE** workflows
-- Built-in **loop barrier** using `value1` (not FLOW_CONTROL)
-- Prevents early loop exit & race conditions
-- Clean INIT → PROCESS → FINALIZE lifecycle
-- Safe temporary directory handling
+<!-- Add your screenshots here -->
+![Workflow Preview](assets/workflow_preview.png)
 
 ---
 
-## Requirements
+## 📦 Installation
 
-- **ComfyUI**
-- **ComfyUI-Manager** (recommended)
-- **ComfyUI-Easy-Use** (required for For Loop)
-- A working WAN VACE workflow
+### Via ComfyUI Manager (Recommended)
 
----
+1. Open ComfyUI
+2. Go to **Manager → Install Custom Nodes**
+3. Search for `wan_vace_auto_joiner`
+4. Click Install and restart ComfyUI
 
-## Installation
-
-### Option 1 — Install via ComfyUI-Manager (recommended)
-
-1. Open **ComfyUI → Manager**
-2. Go to **Install Custom Nodes**
-3. Search for **Wan Vace Auto Joiner**
-4. Install and restart ComfyUI
-
-> If the node is not listed yet, use manual install while the ComfyUI-Manager registry PR is pending.
-
----
-
-### Option 2 — Manual Install
+### Manual Installation
 
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/Rhovanx/wan_vace_auto_joiner.git
 ```
 
-Restart ComfyUI.
+Restart ComfyUI after installation.
 
 ---
 
-## The Three Nodes
+## 📋 Requirements
 
-| Node | Display Name | Runs | Purpose |
-|-----|-------------|------|--------|
-| `WanVaceAutoJoiner` | WAN VACE Auto Joiner | Inside loop | INIT (first iteration) / PROCESS (subsequent) |
-| `WanVaceAutoJoinerSave` | WAN VACE Auto Joiner – Save | Inside loop | Saves VACE output and acts as loop barrier |
-| `WanVaceAutoJoinerFinalize` | WAN VACE Auto Joiner – Finalize | After loop | Outputs all frames (NO VACE) |
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+- [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) — For loop automation
+- A working WAN VACE setup
 
 ---
 
-## Critical Concept: the `value1` Barrier
+## 🚀 Quick Start
 
-ComfyUI Easy-Use For Loop must **wait for VACE to fully finish** before advancing to the next iteration.
+### 1. Prepare Your Videos
 
-This node set enforces that by:
-- Using `value1` (wildcard `*`) as the loop dependency
-- Making the **Save** node depend on **VAE Decode output**
-- Feeding `value1` back into `initial_value1`
-
-This guarantees:
-- No early loop exit
-- No race conditions
-- No skipped clips
-
----
-
-## Required Connection Pattern (IMPORTANT)
+Place your video clips in a folder with sequential numbering:
 
 ```
-For Loop Start ─────────────► For Loop End (flow)
-        │
-        ├── value1 ─► Save ─► initial_value1
-        │
-        └── index ─► Auto Joiner
-                           │
-                           ▼
-                      WAN VACE
-                           │
-                       VAE Decode
-                           │
-                           └──► Save
-After loop:
-For Loop End (value1) ─────► Finalize
+my_videos/
+├── clip_00001.mp4
+├── clip_00002.mp4
+├── clip_00003.mp4
+└── clip_00004.mp4
 ```
+
+### 2. Set Up the Workflow
+
+The nodes appear under **WAN VACE → Auto Joiner**
+
+| Node | Purpose |
+|------|---------|
+| **WAN VACE Auto Joiner** | Prepares frames for VACE processing |
+| **WAN VACE Auto Joiner - Save** | Saves VACE output between iterations |
+| **WAN VACE Auto Joiner - Finalize** | Outputs the final joined video |
+
+### 3. Configure the Loop
+
+For **N videos**, set:
+- **For Loop Start → total** = N - 1
+
+| Videos | Loop Total |
+|--------|------------|
+| 2 | 1 |
+| 3 | 2 |
+| 4 | 3 |
+| 5 | 4 |
+
+### 4. Connect the Nodes
+
+Follow this connection pattern:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│  For Loop Start                                                 │
+│  ├── [flow] ──────────────────────────► For Loop End [flow]     │
+│  ├── [value1] ──► Save ──[value1]────► For Loop End [initial_value1]
+│  └── [index] ───► Auto Joiner                                   │
+│                      │                                          │
+│                      ▼                                          │
+│                 WAN VACE Pipeline                               │
+│                      │                                          │
+│                  VAE Decode                                     │
+│                      │                                          │
+│                      └───► Save [vace_images]                   │
+│                                                                 │
+│  After Loop:                                                    │
+│  For Loop End [value1] ───────────────► Finalize                │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 5. Run
+
+Click **Queue** once — the workflow handles everything automatically!
 
 ---
 
-## Workflow Setup
+## 🔧 Node Settings
 
-### 1️⃣ Prepare your input directory
+### WAN VACE Auto Joiner
 
-Clips must follow this naming format:
+| Input | Description |
+|-------|-------------|
+| `loop_index` | Connect to For Loop Start's `index` output |
+| `directory` | Folder containing your video clips |
+| `file_prefix` | Filename prefix (e.g., `clip` for `clip_00001.mp4`) |
+| `first_suffix` | First video number (usually `1`) |
+| `last_suffix` | Last video number |
 
-```
-clip_00001.mp4
-clip_00002.mp4
-clip_00003.mp4
-```
+### WAN VACE Auto Joiner - Save
 
-(The prefix is configurable in the Auto Joiner node.)
+| Input | Description |
+|-------|-------------|
+| `value1` | Connect to For Loop Start's `value1` output |
+| `directory` | Same folder as Auto Joiner |
+| `vace_images` | Connect to VAE Decode output |
 
----
+### WAN VACE Auto Joiner - Finalize
 
-### 2️⃣ Set loop count correctly
-
-If you have **N videos**:
-
-```
-For Loop Start → total = N - 1
-```
-
-Example:
-- 4 videos → total = 3
-
----
-
-### 3️⃣ Run once
-
-Queue the workflow **one time** — the loop handles everything automatically.
+| Input | Description |
+|-------|-------------|
+| `loop_end_trigger` | Connect to For Loop End's `value1` output |
+| `directory` | Same folder as Auto Joiner |
+| `file_prefix` | Same prefix as Auto Joiner |
+| `cleanup` | Delete temp files after completion |
 
 ---
 
-## Troubleshooting
+## ⚠️ Video Requirements
 
-### Loop exits early
-- Ensure `value1` passes **through the Save node**
-- Do **not** use FLOW_CONTROL for the barrier
+| Requirement | Minimum |
+|-------------|---------|
+| First video | > 16 frames |
+| All other videos | ≥ 17 frames |
+| Resolution | Must match across all videos |
 
-### Finalize runs too early
-- Confirm Finalize is connected **after** For Loop End
-- Do not place Finalize inside the loop
+---
 
-### Missing temp directory
-- Auto Joiner must run at least once
-- Check directory path and permissions
+## ❓ Troubleshooting
+
+### Loop only runs once
+- Ensure `flow` goes **directly** from For Loop Start to For Loop End
+- Ensure `value1` passes **through** the Save node
 
 ### Videos not detected
-- Ensure filenames match `prefix_00001.mp4`
-- Confirm numbering starts at `00001`
+- Check filename format: `prefix_00001.mp4`
+- Ensure numbering is sequential with no gaps
+
+### "No temp folder found"
+- Make sure `directory` is the same on all three nodes
+- Auto Joiner must run before Save and Finalize
+
+### "Video has only X frames, need at least 17"
+- Each video (except the first) needs at least 17 frames
+- The first video needs more than 16 frames
 
 ---
 
-## FAQ
+## 📄 License
 
-**Why not FLOW_CONTROL?**  
-FLOW_CONTROL does not block asynchronous WAN VACE execution.  
-`value1` enforces true dependency completion.
-
-**Why does Finalize not run VACE?**  
-VACE is only required for transitions.  
-Finalize only assembles already-generated frames.
-
-**Can I use this without Easy-Use?**  
-No. The loop system depends on Easy-Use For Loop.
+MIT License — Free to use, modify, and distribute.
 
 ---
 
-## License
+## 🙏 Credits
 
-MIT
+- [WAN VACE](https://github.com/Wan-Video/Wan2.1) — Video generation model
+- [ComfyUI](https://github.com/comfyanonymous/ComfyUI) — Node-based interface
+- [ComfyUI-Easy-Use](https://github.com/yolain/ComfyUI-Easy-Use) — Loop functionality
+
+---
+
+## 💬 Support
+
+If you encounter issues or have suggestions:
+- [Open an Issue](https://github.com/Rhovanx/wan_vace_auto_joiner/issues)

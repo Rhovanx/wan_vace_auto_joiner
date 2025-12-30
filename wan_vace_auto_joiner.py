@@ -1,18 +1,14 @@
 """
-WAN VACE Auto Joiner - For Loop Compatible System
+WAN VACE Auto Joiner - ComfyUI Custom Nodes
 
-Three nodes designed to work with ComfyUI-Easy-Use For Loop:
+Seamlessly join multiple video clips using WAN VACE with one click.
 
-1. WanVaceAutoJoiner - Handles INIT (index=1) and PROCESS (index>1)
-2. WanVaceAutoJoinerSave - Saves VACE output to disk (inside loop)
-3. WanVaceAutoJoinerFinalize - Outputs final video (after loop, NO VACE!)
+Nodes:
+- WanVaceAutoJoiner: Prepares frames for VACE processing (inside loop)
+- WanVaceAutoJoinerSave: Saves VACE output between iterations (inside loop)
+- WanVaceAutoJoinerFinalize: Outputs final joined video (after loop)
 
-For N videos (N-1 transitions):
-- Set For Loop Start total = N-1
-- Loop runs N-1 times with VACE processing
-- Finalize runs ONCE after loop with NO VACE overhead!
-
-Uses 1-based indexing internally (For Loop's 0-based index + 1).
+For N videos, VACE runs exactly N-1 times (one per transition).
 """
 
 import os
@@ -201,16 +197,14 @@ def cleanup_temp_folder(temp_folder: str) -> None:
 
 class WanVaceAutoJoiner:
     """
-    Combined INIT/PROCESS node for use inside Easy Use For Loop.
+    Main processing node - prepares frames for WAN VACE.
     
-    - index=1: INIT - Create temp folder, save Part A, output VACE batch 1
-    - index>1: PROCESS - Save previous VACE + Part F, output next VACE batch
+    Place this node inside the For Loop.
     
-    Uses 1-based indexing internally (adds 1 to For Loop's 0-based index).
-    
-    NOTE: This node is NOT in the flow path. Connect For Loop Start's index
-    output to this node's loop_index input. The Save node handles the flow
-    barrier.
+    Connections:
+    - loop_index: Connect to For Loop Start's index output
+    - image output: Connect to WanVaceToVideo control_video input
+    - mask output: Connect to WanVaceToVideo control_mask input
     """
     
     CATEGORY = "WAN VACE/Auto Joiner"
@@ -473,27 +467,18 @@ class WanVaceAutoJoiner:
 
 class WanVaceAutoJoinerSave:
     """
-    Save node - saves VACE output to disk for next iteration or Finalize.
+    Saves VACE output to disk between loop iterations.
     
-    This node runs INSIDE the For Loop, after VACE processing.
-    It saves the VACE output to vace_output.pt for:
-    - The next PROCESS iteration to read
-    - Or the FINALIZE node to read after the loop
+    Place this node inside the For Loop, after VAE Decode.
     
-    *** THIS NODE IS THE BARRIER VIA value1 ***
-    
-    Because it depends on vace_images (from VAE Decode), it won't execute
-    until VACE processing is complete. By having value1 pass through this node,
-    the For Loop End waits for each iteration's work to finish before advancing.
-    
-    Connection pattern:
-    - flow path: For Loop Start [flow] → For Loop End [flow] (DIRECT!)
-    - value1 path: For Loop Start [value1] → Save [value1] → For Loop End [initial_value1]
+    Connections:
+    - value1: Connect to For Loop Start's value1 output
+    - vace_images: Connect to VAE Decode output
+    - value1 output: Connect to For Loop End's initial_value1 input
     """
     
     CATEGORY = "WAN VACE/Auto Joiner"
     FUNCTION = "process"
-    # Output value1 passthrough (as wildcard to match For Loop types)
     RETURN_TYPES = ("*", "STRING", "BOOLEAN")
     RETURN_NAMES = ("value1", "status", "is_complete")
     OUTPUT_NODE = True
@@ -535,7 +520,7 @@ class WanVaceAutoJoinerSave:
         status = f"Saved {num_frames} VACE frames to disk."
         print(f"[WAN VACE Auto Joiner Save] {status}")
         
-        # Pass through value1 unchanged - this creates the barrier!
+        # Pass through value1 unchanged
         return (value1, status, False)
 
 
@@ -545,17 +530,15 @@ class WanVaceAutoJoinerSave:
 
 class WanVaceAutoJoinerFinalize:
     """
-    Finalize node - runs AFTER the For Loop with NO VACE overhead!
+    Outputs the final joined video after loop completion.
     
-    - Reads the final VACE output from disk
-    - Saves it to temp folder
-    - Saves Part K (z-17 frames from last video)
-    - Outputs ALL frames as batch_images
+    Place this node AFTER the For Loop (not inside it).
+    No additional VACE processing required.
     
-    Connect For Loop End's value1 output DIRECTLY to loop_end_trigger.
-    This ensures Finalize only runs after all loop iterations complete.
-    
-    Prefers reading VACE output from disk (vace_output.pt).
+    Connections:
+    - loop_end_trigger: Connect to For Loop End's value1 output
+    - batch_images output: Connect to VHS Video Combine or similar
+    - frame_rate output: Connect to video output node
     """
     
     CATEGORY = "WAN VACE/Auto Joiner"
