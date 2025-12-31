@@ -6,7 +6,7 @@ A complete working workflow that demonstrates the WAN VACE Auto Joiner setup.
 
 ### How to Use
 
-1. Download `example_workflow.json`
+1. Download `Wan Vace Auto Joiner WF.json`
 2. In ComfyUI, click **Load** and select the file
 3. Adjust the `directory` path to point to your video clips folder
 4. Set `first_suffix` and `last_suffix` to match your video numbering
