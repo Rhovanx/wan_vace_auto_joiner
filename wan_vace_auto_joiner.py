@@ -15,6 +15,7 @@ import os
 import json
 import glob
 import shutil
+import re
 from datetime import datetime
 from typing import Tuple, List, Optional, Dict, Any
 
@@ -22,6 +23,15 @@ import torch
 import numpy as np
 from PIL import Image
 import cv2
+
+# Try to import ComfyUI folder paths for security validation
+try:
+    import folder_paths
+    COMFYUI_INPUT_DIR = folder_paths.get_input_directory()
+    COMFYUI_OUTPUT_DIR = folder_paths.get_output_directory()
+except ImportError:
+    COMFYUI_INPUT_DIR = None
+    COMFYUI_OUTPUT_DIR = None
 
 
 # =============================================================================
@@ -36,17 +46,81 @@ MASK_END = 24
 
 
 # =============================================================================
+# Security Helper Functions
+# =============================================================================
+
+def sanitize_prefix(prefix: str) -> str:
+    """
+    Sanitize file prefix to prevent path traversal attacks.
+    Removes any path separators and dangerous characters.
+    """
+    # Remove path separators
+    prefix = prefix.replace("/", "").replace("\\", "")
+    # Remove parent directory references
+    prefix = prefix.replace("..", "")
+    # Only allow alphanumeric, underscore, hyphen
+    prefix = re.sub(r'[^a-zA-Z0-9_\-]', '', prefix)
+    
+    if not prefix:
+        raise ValueError("Invalid file prefix: prefix cannot be empty after sanitization")
+    
+    return prefix
+
+
+def validate_directory(directory: str) -> str:
+    """
+    Validate and normalize the directory path.
+    Returns the absolute, resolved path.
+    """
+    if not directory or not directory.strip():
+        raise ValueError("Directory path cannot be empty")
+    
+    # Resolve to absolute path (resolves symlinks and ..)
+    abs_path = os.path.realpath(os.path.abspath(directory))
+    
+    # Check if directory exists
+    if not os.path.isdir(abs_path):
+        raise ValueError(f"Directory does not exist: {directory}")
+    
+    return abs_path
+
+
+def validate_path_within_directory(path: str, base_directory: str) -> str:
+    """
+    Ensure the given path is within the base directory.
+    Prevents path traversal attacks.
+    """
+    # Resolve both paths
+    abs_path = os.path.realpath(os.path.abspath(path))
+    abs_base = os.path.realpath(os.path.abspath(base_directory))
+    
+    # Check if path starts with base directory
+    if not abs_path.startswith(abs_base + os.sep) and abs_path != abs_base:
+        raise ValueError(f"Path traversal detected: {path} is outside {base_directory}")
+    
+    return abs_path
+
+
+# =============================================================================
 # Shared Helper Functions
 # =============================================================================
 
 def get_video_path(directory: str, prefix: str, suffix: int) -> str:
+    """Get video path with security validation."""
     filename = f"{prefix}_{suffix:05d}.mp4"
-    return os.path.join(directory, filename)
+    full_path = os.path.join(directory, filename)
+    # Validate path stays within directory
+    validate_path_within_directory(full_path, directory)
+    return full_path
 
 
 def get_frame_path(temp_folder: str, prefix: str, frame_num: int) -> str:
+    """Get frame path with security validation."""
     filename = f"{prefix}_{frame_num:05d}.png"
-    return os.path.join(temp_folder, filename)
+    full_path = os.path.join(temp_folder, filename)
+    # Validate path stays within temp folder
+    validate_path_within_directory(full_path, temp_folder)
+    return full_path
 
 
 def find_temp_folder(directory: str) -> Optional[str]:
@@ -261,12 +335,12 @@ class WanVaceAutoJoiner:
             last_suffix: Last video number
         """
         
+        # Sanitize and validate inputs
+        directory = validate_directory(directory)
+        file_prefix = sanitize_prefix(file_prefix)
+        
         # Convert 0-based to 1-based index
         index = loop_index + 1
-        
-        # Validate inputs
-        if not os.path.isdir(directory):
-            raise ValueError(f"Directory does not exist: {directory}")
         
         if first_suffix > last_suffix:
             raise ValueError("first_suffix must be <= last_suffix")
@@ -505,6 +579,9 @@ class WanVaceAutoJoinerSave:
                 ) -> Tuple[Any, str, bool]:
         """Save VACE output to disk and pass through value1 unchanged."""
         
+        # Validate directory
+        directory = validate_directory(directory)
+        
         print(f"[WAN VACE Auto Joiner Save] Saving VACE output...")
         
         # Find temp folder
@@ -512,8 +589,12 @@ class WanVaceAutoJoinerSave:
         if not temp_folder:
             raise ValueError("No temp folder found. Auto Joiner must run first.")
         
+        # Validate temp folder is within directory
+        validate_path_within_directory(temp_folder, directory)
+        
         # Save VACE output
         vace_output_path = os.path.join(temp_folder, "vace_output.pt")
+        validate_path_within_directory(vace_output_path, temp_folder)
         torch.save(vace_images, vace_output_path)
         
         num_frames = vace_images.shape[0]
@@ -582,12 +663,19 @@ class WanVaceAutoJoinerFinalize:
         Finalize: Save final VACE output + Part K, output all frames.
         """
         
+        # Sanitize and validate inputs
+        directory = validate_directory(directory)
+        file_prefix = sanitize_prefix(file_prefix)
+        
         print(f"[WAN VACE Auto Joiner Finalize] Starting finalization...")
         
         # Find temp folder
         temp_folder = find_temp_folder(directory)
         if not temp_folder:
             raise ValueError("No temp folder found. Processing must complete first.")
+        
+        # Validate temp folder is within directory
+        validate_path_within_directory(temp_folder, directory)
         
         # Load state
         state = load_state(temp_folder)
@@ -605,6 +693,7 @@ class WanVaceAutoJoinerFinalize:
         
         # Get final VACE output - prefer disk, fallback to input
         vace_output_path = os.path.join(temp_folder, "vace_output.pt")
+        validate_path_within_directory(vace_output_path, temp_folder)
         
         if os.path.exists(vace_output_path):
             print(f"[WAN VACE Auto Joiner Finalize] Reading VACE output from disk")
