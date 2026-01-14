@@ -1,0 +1,8 @@
+{
+  "name": "Wan VACE Auto Joiner",
+  "author": "Rhovanx",
+  "description": "Seamlessly join multiple video clips in a folder using WAN VACE and ComfyUI Easy-Use For Loop automation with one-click solution.",
+  "version": "2.0.0",
+  "tags": ["video", "wan", "vace", "joiner", "animation", "ltx"],
+  "repository": "https://github.com/Rhovanx/wan_vace_auto_joiner"
+}
